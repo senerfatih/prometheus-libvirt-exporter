@@ -29,6 +29,11 @@ var (
 		nil)
 
 	//domain info
+	libvirtDomainEmulatorThreadCpuSetDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "domain_emulatorthread", "cpuset"),
+		"CPU affinity setting of all emulator threads of domain",
+		[]string{"domain", "emulatorpin_cpuset"},
+		nil)
 	libvirtDomainState = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "domain_info", "state"),
 		"Code of the domain state",

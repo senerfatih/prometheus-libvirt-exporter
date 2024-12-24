@@ -496,7 +496,32 @@ func CollectDomain(ch chan<- prometheus.Metric, l *libvirt.Libvirt, domain domai
 	ch <- prometheus.MustNewConstMetric(libvirtDomainInfoMemoryDesc, prometheus.GaugeValue, float64(rmemory)*1024, promLabels...)
 	ch <- prometheus.MustNewConstMetric(libvirtDomainInfoNrVirtCpuDesc, prometheus.GaugeValue, float64(rvirCpu), promLabels...)
 	ch <- prometheus.MustNewConstMetric(libvirtDomainInfoCpuTimeDesc, prometheus.CounterValue, float64(rcputime)/1e9, promLabels...)
+	
+	var emulatorThreadCpuMap map[int]bool
+	emulatorThreadCpuMap, err = l.DomainGetEmulatorPinInfo(domain.libvirtDomain, 0)
+	if err != nil {
+		_ = level.Warn(logger).Log("warn", "failed to get emulator thread pin info", "domain", domain.domainName, "msg", err)
+	return err
+	}
 
+	var pinnedCPUs []string
+	hasPinnedCPUs := 0
+	for cpu, isPinned := range emulatorThreadCpuMap {
+		if isPinned {
+			pinnedCPUs = append(pinnedCPUs, fmt.Sprintf("%d", cpu))
+			hasPinnedCPUs = 1
+		}
+	}
+
+	emulatorPinStr := strings.Join(pinnedCPUs, ",")
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainEmulatorThreadCpuSetDesc,
+		prometheus.GaugeValue,
+		float64(hasPinnedCPUs),
+		domain.domainName,
+		emulatorPinStr,
+	)
+	
 	var isActive int32
 	if isActive, err = l.DomainIsActive(domain.libvirtDomain); err != nil {
 		_ = level.Error(logger).Log("err", "failed to get active status of domain", "domain", domain.libvirtDomain.Name, "msg", err)
@@ -879,7 +904,8 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtDomainInfoMemoryDesc
 	ch <- libvirtDomainInfoNrVirtCpuDesc
 	ch <- libvirtDomainInfoCpuTimeDesc
-
+	ch <- libvirtDomainEmulatorThreadCpuSetDesc
+	
 	//domain block
 	ch <- libvirtDomainBlockStatsInfo
 	ch <- libvirtDomainBlockStatsRdBytesDesc
